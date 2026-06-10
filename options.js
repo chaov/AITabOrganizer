@@ -14,7 +14,13 @@ const DEFAULTS = {
   model: "gpt-4.1-mini",
   extraPrompt: "",
   customRules: JSON.stringify(DEFAULT_RULES, null, 2),
-  groupByDomainFallback: true
+  groupByDomainFallback: true,
+  enablePageSemantics: false,
+  pageSnippetChars: 500,
+  maxSemanticTabs: 8,
+  semanticTimeoutMs: 350,
+  semanticCacheTtlMinutes: 30,
+  aiRequestTimeoutMs: 20000
 };
 
 async function loadSettings() {
@@ -25,6 +31,12 @@ async function loadSettings() {
   document.getElementById("extraPrompt").value = data.extraPrompt || "";
   document.getElementById("customRules").value = data.customRules || DEFAULTS.customRules;
   document.getElementById("groupByDomainFallback").checked = data.groupByDomainFallback !== false;
+  document.getElementById("enablePageSemantics").checked = data.enablePageSemantics === true;
+  document.getElementById("pageSnippetChars").value = data.pageSnippetChars || DEFAULTS.pageSnippetChars;
+  document.getElementById("maxSemanticTabs").value = data.maxSemanticTabs || DEFAULTS.maxSemanticTabs;
+  document.getElementById("semanticTimeoutMs").value = data.semanticTimeoutMs || DEFAULTS.semanticTimeoutMs;
+  document.getElementById("semanticCacheTtlMinutes").value = data.semanticCacheTtlMinutes || DEFAULTS.semanticCacheTtlMinutes;
+  document.getElementById("aiRequestTimeoutMs").value = data.aiRequestTimeoutMs || DEFAULTS.aiRequestTimeoutMs;
 }
 
 async function saveSettings() {
@@ -34,11 +46,32 @@ async function saveSettings() {
     model: document.getElementById("model").value.trim() || DEFAULTS.model,
     extraPrompt: document.getElementById("extraPrompt").value.trim(),
     customRules: document.getElementById("customRules").value.trim() || DEFAULTS.customRules,
-    groupByDomainFallback: document.getElementById("groupByDomainFallback").checked
+    groupByDomainFallback: document.getElementById("groupByDomainFallback").checked,
+    enablePageSemantics: document.getElementById("enablePageSemantics").checked,
+    pageSnippetChars: Math.max(200, Math.min(1200, Number(document.getElementById("pageSnippetChars").value || DEFAULTS.pageSnippetChars))),
+    maxSemanticTabs: Math.max(0, Math.min(50, Number(document.getElementById("maxSemanticTabs").value || DEFAULTS.maxSemanticTabs))),
+    semanticTimeoutMs: Math.max(150, Math.min(2000, Number(document.getElementById("semanticTimeoutMs").value || DEFAULTS.semanticTimeoutMs))),
+    semanticCacheTtlMinutes: Math.max(1, Math.min(1440, Number(document.getElementById("semanticCacheTtlMinutes").value || DEFAULTS.semanticCacheTtlMinutes))),
+    aiRequestTimeoutMs: Math.max(8000, Math.min(30000, Number(document.getElementById("aiRequestTimeoutMs").value || DEFAULTS.aiRequestTimeoutMs)))
   };
-  try { JSON.parse(settings.customRules); }
-  catch (e) {
-    document.getElementById("status").textContent = "规则 JSON 格式错误：" + e.message;
+  try {
+    const parsed = JSON.parse(settings.customRules);
+    if (!Array.isArray(parsed)) throw new Error("顶层必须是数组，例如 [{\"name\":...,\"keywords\":[...]}]");
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    const m = msg.match(/position\s+(\d+)/i);
+    let hint = msg;
+    if (m) {
+      const pos = Number(m[1]);
+      const text = settings.customRules;
+      const before = text.slice(0, pos);
+      const line = before.split("\n").length;
+      const col = before.length - before.lastIndexOf("\n");
+      const start = Math.max(0, pos - 60);
+      const end = Math.min(text.length, pos + 60);
+      hint += `；位置：第 ${line} 行，第 ${col} 列；附近：${text.slice(start, end)}`;
+    }
+    document.getElementById("status").textContent = "规则 JSON 格式错误：" + hint + "。常见原因：漏了英文双引号、用了中文引号、字符串里有未转义换行、末尾多了逗号。";
     document.getElementById("status").style.color = "#b91c1c";
     return;
   }
@@ -53,7 +86,7 @@ async function clearSettings() {
   document.getElementById("status").textContent = "已清空 AI 设置，规则配置保持不变。";
 }
 async function resetRules() {
-  await chrome.storage.local.set({ customRules: DEFAULTS.customRules, groupByDomainFallback: true });
+  await chrome.storage.local.set({ customRules: DEFAULTS.customRules, groupByDomainFallback: true, enablePageSemantics: DEFAULTS.enablePageSemantics, pageSnippetChars: DEFAULTS.pageSnippetChars, maxSemanticTabs: DEFAULTS.maxSemanticTabs, semanticTimeoutMs: DEFAULTS.semanticTimeoutMs, semanticCacheTtlMinutes: DEFAULTS.semanticCacheTtlMinutes, aiRequestTimeoutMs: DEFAULTS.aiRequestTimeoutMs });
   await loadSettings();
   document.getElementById("status").style.color = "#047857";
   document.getElementById("status").textContent = "已恢复默认规则。";

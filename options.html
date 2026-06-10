@@ -22,7 +22,7 @@
   <div class="wrap">
     <h1>AI Tab Organizer 设置</h1>
     <div class="sub">
-      AI Tab Organizer 支持“规则模式”和“AI 语义分组模式”。规则模式支持自定义 JSON 规则；AI 模式会把当前窗口标签页的 <code>id/title/url/domain</code> 发送到你配置的 OpenAI-compatible 接口，模型只返回分组计划，插件本地校验和执行。
+      AI Tab Organizer 支持“规则模式”和“AI 语义分组模式”。规则模式支持自定义 JSON 规则；AI 模式会把当前窗口标签页的 <code>id/title/url/domain</code> 以及可选页面语义摘要发送到你配置的 OpenAI-compatible 接口，模型只返回分组计划，插件本地校验和执行。
     </div>
 
     <label>API Endpoint</label>
@@ -45,6 +45,30 @@
 
     <label><input id="groupByDomainFallback" type="checkbox" style="width:auto;margin-right:8px" /> 未命中规则时按域名兜底分组</label>
     <div class="hint">如果关闭兜底，未命中规则的标签会进入“其他 / 未分类”。如果最小成组数量为 2，单独域名通常会被过滤掉。</div>
+
+    <label><input id="enablePageSemantics" type="checkbox" style="width:auto;margin-right:8px" /> 启用页面语义增强</label>
+    <div class="hint">默认关闭以保证 50 个 tabs 的快速分组。开启后会限并发、限时、带缓存读取部分页面的 meta description、h1/h2 和正文片段。受浏览器权限限制，chrome://、扩展页、部分受保护页面会自动跳过。</div>
+
+    <label>页面正文片段长度</label>
+    <input id="pageSnippetChars" type="number" min="200" max="1200" step="100" />
+    <div class="hint">建议 300～600。越长越利于 AI 判断任务语义，但会增加 token 和请求成本。</div>
+
+    <label>页面语义抽取上限 tabs</label>
+    <input id="maxSemanticTabs" type="number" min="0" max="50" step="1" />
+    <div class="hint">建议 0～8。要满足 50 个 tabs 约 5 秒内完成，建议保持默认 8 或关闭页面语义增强。</div>
+
+    <label>单页语义抽取超时 ms</label>
+    <input id="semanticTimeoutMs" type="number" min="150" max="2000" step="50" />
+    <div class="hint">建议 300～500ms。超时的页面会自动走 title/url/domain 快速路径，不阻塞整体分组。</div>
+
+    <label>页面语义缓存时间 min</label>
+    <input id="semanticCacheTtlMinutes" type="number" min="1" max="1440" step="1" />
+    <div class="hint">重复整理同一批 tabs 时，缓存可显著降低响应时间。</div>
+
+    <label>AI 最大请求超时 ms</label>
+    <input id="aiRequestTimeoutMs" type="number" min="8000" max="30000" step="500" />
+    <div class="hint">v0.4.5 起使用自适应超时：约 6000ms + 每个 tab 180ms，并受这里的最大超时限制。建议 DeepSeek V4 设置为 20000ms。</div>
+
 
     <button id="saveBtn">保存设置</button>
     <button id="clearBtn" class="secondary">清空 AI 设置</button>

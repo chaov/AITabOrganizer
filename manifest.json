@@ -1,18 +1,20 @@
 {
   "manifest_version": 3,
   "name": "AI Tab Organizer",
-  "description": "Organize Chrome tabs by rule-based or AI semantic grouping with editable preview and cleanup tools.",
-  "version": "0.3.4",
+  "description": "AI Tab Organizer with default AI semantic grouping, adaptive AI timeout, batch mode for large windows, fast rules fallback, optional page semantics, and custom rules.",
+  "version": "0.4.6",
   "permissions": [
     "tabs",
     "tabGroups",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
     "https://api.openai.com/*",
     "https://*/",
     "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "http://*/"
   ],
   "action": {
     "default_title": "AI Tab Organizer",

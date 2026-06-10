@@ -11,11 +11,15 @@
     .sub { margin-top: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
     .panel { padding: 14px 16px; }
     .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .settings-card { display:flex; align-items:center; justify-content:space-between; gap:10px; background:#eef6ff; border:1px solid #bfdbfe; border-radius:14px; padding:10px 12px; margin-bottom:12px; }
+    .settings-title { font-size:14px; font-weight:800; color:#1e3a8a; }
+    .settings-sub { font-size:12px; color:#475569; margin-top:2px; line-height:1.35; }
     button { border: 0; border-radius: 10px; padding: 9px 11px; font-weight: 700; cursor: pointer; }
     .primary { background: var(--blue); color: #fff; }
     .secondary { background: #e5e7eb; color: #111827; }
     .danger { background: #fee2e2; color: #991b1b; }
     .ghost { background: transparent; color: var(--blue); padding: 6px 0; }
+    .settings-btn { background:#2563eb; color:white; white-space:nowrap; padding:9px 12px; box-shadow:0 6px 16px rgba(37,99,235,.18); }
     .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin: 12px 0; }
     .stat { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 9px; text-align: center; }
     .num { font-size: 18px; font-weight: 800; }
@@ -40,14 +44,21 @@
 <body>
   <div class="head">
     <h1>AI Tab Organizer</h1>
-    <div class="sub">规则模式支持自定义规则 / AI 语义分组。支持当前窗口撤销，以及卸载前清除所有窗口分组。</div>
+    <div class="sub">v0.4.6：自适应 AI 超时；默认 AI 语义分组；超过 50 个 tabs 时提示选择 AI 分批处理或快速规则整理。</div>
   </div>
   <div class="panel">
+    <div class="settings-card">
+      <div>
+        <div class="settings-title">AI 设置</div>
+        <div class="settings-sub">配置模型接口、自定义规则和性能参数</div>
+      </div>
+      <button id="optionsBtn" class="settings-btn">打开设置</button>
+    </div>
     <div class="row">
       <label>分组模式</label>
       <select id="mode">
+        <option value="ai" selected>AI 语义模式</option>
         <option value="rule">规则模式</option>
-        <option value="ai">AI 语义模式</option>
       </select>
       <label>最小成组</label>
       <input id="minSize" type="number" min="1" max="10" value="2" style="width:54px" />
@@ -61,9 +72,8 @@
       <button id="applyBtn" class="secondary" disabled>应用分组</button>
       <button id="undoBtn" class="danger">撤销上次</button>
       <button id="ungroupAllBtn" class="danger">清除分组</button>
+      <button id="cleanupBeforeUninstallBtn" class="danger">卸载</button>
     </div>
-    <button id="optionsBtn" class="ghost">AI 设置</button>
-    <button id="cleanupBeforeUninstallBtn" class="ghost" style="color:#b91c1c;margin-left:14px">清除分组并卸载</button>
     <div id="status" class="status"></div>
     <div class="stats">
       <div class="stat"><div id="statTotal" class="num">0</div><div class="label">总 tabs</div></div>
@@ -73,7 +83,7 @@
     </div>
     <div class="sep"></div>
     <div id="groups"></div>
-    <div class="small">提示：AI 模式需要先在“AI 设置”里配置 endpoint/key/model。Chrome 不提供可靠的卸载回调；卸载前请点击“清除分组并卸载”。</div>
+    <div class="small">提示：AI 模式需要先在“AI 设置”里配置 endpoint/key/model。页面语义增强默认关闭，可在设置页打开；Chrome 不提供可靠的卸载回调，卸载前请点击“卸载”。</div>
   </div>
   <script src="popup.js"></script>
 </body>
