@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>AI Tab Organizer Settings</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #f7f9fc; color: #1f2937; }
+    .wrap { max-width: 760px; margin: 40px auto; background: white; border: 1px solid #e5e7eb; border-radius: 18px; padding: 28px; box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08); }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .sub { color: #6b7280; line-height: 1.5; margin-bottom: 24px; }
+    label { display: block; margin-top: 18px; font-weight: 650; }
+    input, select, textarea { width: 100%; box-sizing: border-box; margin-top: 8px; border: 1px solid #d1d5db; border-radius: 10px; padding: 11px 12px; font-size: 14px; background: #fff; }
+    textarea { min-height: 72px; resize: vertical; }
+    button { margin-top: 22px; padding: 11px 16px; border-radius: 10px; border: 0; background: #2563eb; color: white; font-weight: 700; cursor: pointer; }
+    .secondary { background: #e5e7eb; color: #111827; margin-left: 8px; }
+    .hint { color: #6b7280; font-size: 13px; margin-top: 6px; line-height: 1.4; }
+    .status { margin-top: 16px; font-size: 14px; color: #047857; }
+    code { background: #f3f4f6; padding: 2px 5px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>AI Tab Organizer 设置</h1>
+    <div class="sub">
+      AI Tab Organizer 支持“规则模式”和“AI 语义分组模式”。规则模式支持自定义 JSON 规则；AI 模式会把当前窗口标签页的 <code>id/title/url/domain</code> 发送到你配置的 OpenAI-compatible 接口，模型只返回分组计划，插件本地校验和执行。
+    </div>
+
+    <label>API Endpoint</label>
+    <input id="endpoint" placeholder="https://api.openai.com/v1/chat/completions" />
+    <div class="hint">也可以填写你们内部网关或本地模型服务，只要兼容 Chat Completions 返回格式。</div>
+
+    <label>API Key</label>
+    <input id="apiKey" type="password" placeholder="sk-..." />
+    <div class="hint">仅保存在 Chrome 本地 storage。建议使用测试 key。</div>
+
+    <label>Model</label>
+    <input id="model" placeholder="gpt-4.1-mini / your-internal-model" />
+
+    <label>System Prompt 附加约束</label>
+    <textarea id="extraPrompt" placeholder="例如：中文分组名，优先按工作任务分组，购物页单独分组等"></textarea>
+
+    <label>规则模式：自定义规则 JSON</label>
+    <textarea id="customRules" style="min-height:260px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace" placeholder='[{"name":"AI / Agent","color":"blue","keywords":["ai","agent"]}]'></textarea>
+    <div class="hint">字段支持：<code>name</code>、<code>color</code>、<code>keywords</code>、<code>domains</code>、<code>urlPatterns</code>、<code>titleKeywords</code>。domains 权重最高，titleKeywords / urlPatterns 次之，keywords 最低。</div>
+
+    <label><input id="groupByDomainFallback" type="checkbox" style="width:auto;margin-right:8px" /> 未命中规则时按域名兜底分组</label>
+    <div class="hint">如果关闭兜底，未命中规则的标签会进入“其他 / 未分类”。如果最小成组数量为 2，单独域名通常会被过滤掉。</div>
+
+    <button id="saveBtn">保存设置</button>
+    <button id="clearBtn" class="secondary">清空 AI 设置</button>
+    <button id="resetRulesBtn" class="secondary">恢复默认规则</button>
+    <div id="status" class="status"></div>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

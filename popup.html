@@ -1,142 +1,80 @@
 <!doctype html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <title>AI Tab Organizer PoC</title>
+  <title>AI Tab Organizer</title>
   <style>
-    :root {
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --line: #e2e8f0;
-      --text: #0f172a;
-      --muted: #64748b;
-      --blue: #2563eb;
-      --danger-bg: #fee2e2;
-      --danger: #991b1b;
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      width: 520px;
-      margin: 0;
-      padding: 14px;
-      background: var(--bg);
-      color: var(--text);
-    }
-    h1 { font-size: 18px; margin: 0 0 6px; }
-    p { font-size: 12px; color: #475569; margin: 0 0 12px; line-height: 1.45; }
-    button, select, input[type="text"] {
-      font-family: inherit;
-      font-size: 12px;
-    }
-    button {
-      border: 0;
-      border-radius: 10px;
-      padding: 9px 12px;
-      cursor: pointer;
-      font-weight: 650;
-    }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .primary { background: var(--blue); color: white; }
-    .secondary { background: #e2e8f0; color: var(--text); }
-    .danger { background: var(--danger-bg); color: var(--danger); }
-    .row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
-    .options {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
-    .option { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #334155; margin: 6px 0; }
-    .option-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #334155; margin-right: 12px; }
-    .group {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 10px;
-      margin: 8px 0;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-    }
-    .group.disabled { opacity: 0.55; }
-    .group-head {
-      display: grid;
-      grid-template-columns: 22px 1fr 78px 64px;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-    .group-title-input {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 6px 8px;
-      font-weight: 700;
-      color: var(--text);
-      background: #f8fafc;
-    }
-    .color-select, .min-select {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 6px;
-      background: white;
-      color: #334155;
-    }
-    .count { color: var(--muted); font-size: 12px; font-weight: 600; text-align: right; }
-    .reason { color: #64748b; font-size: 11px; margin: 2px 0 6px 30px; }
-    ul { padding-left: 30px; margin: 6px 0 0; }
-    li { font-size: 12px; margin: 4px 0; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .status { font-size: 12px; color: #475569; margin-top: 8px; min-height: 18px; }
-    .hint { font-size: 11px; color: #64748b; margin-top: 6px; }
-    .stats {
-      font-size: 12px;
-      color: #334155;
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      border-radius: 10px;
-      padding: 8px 10px;
-      margin-bottom: 8px;
-      display: none;
-    }
-    .empty {
-      background: white;
-      border: 1px dashed #cbd5e1;
-      border-radius: 12px;
-      padding: 14px;
-      color: #64748b;
-      font-size: 12px;
-      text-align: center;
-    }
+    :root { --blue:#2563eb; --bg:#f8fafc; --line:#e5e7eb; --text:#111827; --muted:#6b7280; }
+    body { width: 460px; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+    .head { padding: 16px 16px 12px; background: linear-gradient(180deg,#fff,#f8fafc); border-bottom: 1px solid var(--line); }
+    h1 { margin: 0; font-size: 18px; }
+    .sub { margin-top: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+    .panel { padding: 14px 16px; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    button { border: 0; border-radius: 10px; padding: 9px 11px; font-weight: 700; cursor: pointer; }
+    .primary { background: var(--blue); color: #fff; }
+    .secondary { background: #e5e7eb; color: #111827; }
+    .danger { background: #fee2e2; color: #991b1b; }
+    .ghost { background: transparent; color: var(--blue); padding: 6px 0; }
+    .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin: 12px 0; }
+    .stat { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 9px; text-align: center; }
+    .num { font-size: 18px; font-weight: 800; }
+    .label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    label { font-size: 13px; color: #374151; }
+    select, input[type="number"] { border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 8px; background: white; }
+    .group { background: white; border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+    .ghead { display: flex; gap: 8px; align-items: center; }
+    .gname { flex: 1; border: 1px solid #d1d5db; border-radius: 9px; padding: 7px 8px; font-weight: 700; }
+    .color { width: 78px; }
+    .reason { color: #4b5563; background: #f3f4f6; border-radius: 9px; padding: 7px 8px; font-size: 12px; margin-top: 8px; line-height: 1.4; }
+    ul { margin: 9px 0 0 0; padding-left: 18px; max-height: 115px; overflow: auto; }
+    li { font-size: 12.5px; margin: 4px 0; color: #374151; }
+    .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 380px; display: inline-block; vertical-align: bottom; }
+    .status { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin-top: 8px; min-height: 18px; }
+    .error { color: #b91c1c; }
+    .ok { color: #047857; }
+    .sep { border-top: 1px solid var(--line); margin: 12px 0; }
+    .small { font-size: 12px; color: var(--muted); }
   </style>
 </head>
 <body>
-  <h1>AI Tab Organizer PoC v0.2</h1>
-  <p>整理当前窗口标签页：生成可编辑分组预览，确认后再创建 Chrome Tab Groups。支持跳过已分组标签和撤销上次整理。</p>
-
-  <div class="options">
-    <label class="option"><input id="skipPinned" type="checkbox" checked />跳过固定标签页 / chrome:// / 扩展页</label>
-    <label class="option"><input id="onlyUngrouped" type="checkbox" checked />只整理尚未分组的标签页</label>
-    <label class="option-inline">最小成组数量
-      <select id="minGroupSize" class="min-select">
-        <option value="1">1</option>
-        <option value="2" selected>2</option>
-        <option value="3">3</option>
+  <div class="head">
+    <h1>AI Tab Organizer</h1>
+    <div class="sub">规则模式支持自定义规则 / AI 语义分组。支持当前窗口撤销，以及卸载前清除所有窗口分组。</div>
+  </div>
+  <div class="panel">
+    <div class="row">
+      <label>分组模式</label>
+      <select id="mode">
+        <option value="rule">规则模式</option>
+        <option value="ai">AI 语义模式</option>
       </select>
-    </label>
+      <label>最小成组</label>
+      <input id="minSize" type="number" min="1" max="10" value="2" style="width:54px" />
+    </div>
+    <div class="row">
+      <label><input id="onlyUngrouped" type="checkbox" checked /> 只整理未分组 tabs</label>
+      <label><input id="skipPinned" type="checkbox" checked /> 跳过 pinned</label>
+    </div>
+    <div class="row">
+      <button id="previewBtn" class="primary">生成分组预览</button>
+      <button id="applyBtn" class="secondary" disabled>应用分组</button>
+      <button id="undoBtn" class="danger">撤销上次</button>
+      <button id="ungroupAllBtn" class="danger">清除分组</button>
+    </div>
+    <button id="optionsBtn" class="ghost">AI 设置</button>
+    <button id="cleanupBeforeUninstallBtn" class="ghost" style="color:#b91c1c;margin-left:14px">清除分组并卸载</button>
+    <div id="status" class="status"></div>
+    <div class="stats">
+      <div class="stat"><div id="statTotal" class="num">0</div><div class="label">总 tabs</div></div>
+      <div class="stat"><div id="statUsed" class="num">0</div><div class="label">纳入</div></div>
+      <div class="stat"><div id="statSkipped" class="num">0</div><div class="label">跳过</div></div>
+      <div class="stat"><div id="statGroups" class="num">0</div><div class="label">分组</div></div>
+    </div>
+    <div class="sep"></div>
+    <div id="groups"></div>
+    <div class="small">提示：AI 模式需要先在“AI 设置”里配置 endpoint/key/model。Chrome 不提供可靠的卸载回调；卸载前请点击“清除分组并卸载”。</div>
   </div>
-
-  <div class="row">
-    <button id="previewBtn" class="primary">生成分组预览</button>
-    <button id="applyBtn" class="secondary" disabled>应用分组</button>
-    <button id="undoBtn" class="secondary" disabled>撤销上次分组</button>
-    <button id="clearBtn" class="danger">清空预览</button>
-  </div>
-
-  <div id="stats" class="stats"></div>
-  <div id="preview"></div>
-  <div id="status" class="status"></div>
-  <div class="hint">v0.2 仍是规则/轻量语义版本；下一版可把分类器替换成 LLM grouping plan。</div>
-
   <script src="popup.js"></script>
 </body>
 </html>

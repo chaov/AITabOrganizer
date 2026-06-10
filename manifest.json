@@ -1,13 +1,29 @@
 {
   "manifest_version": 3,
-  "name": "AI Tab Organizer PoC",
-  "version": "0.2.0",
-  "description": "A Chrome Extension PoC that previews, edits, applies, and undoes semantic-like tab groups.",
-  "permissions": ["tabs", "tabGroups", "storage"],
+  "name": "AI Tab Organizer",
+  "description": "Organize Chrome tabs by rule-based or AI semantic grouping with editable preview and cleanup tools.",
+  "version": "0.3.4",
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.openai.com/*",
+    "https://*/",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
   "action": {
     "default_title": "AI Tab Organizer",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
+  "options_page": "options.html",
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",

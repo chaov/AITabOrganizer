@@ -1,332 +1,407 @@
-let latestPlan = null;
-let latestStats = null;
-
-const GROUP_COLORS = ["blue", "green", "yellow", "purple", "cyan", "pink", "orange", "grey"];
-
-const CATEGORY_RULES = [
-  {
-    name: "AI / 技术研究",
-    keywords: ["ai", "agent", "llm", "openai", "anthropic", "claude", "gemini", "github", "arxiv", "paper", "docs", "developer", "chromium", "chrome", "webkit", "safari", "v8", "runtime", "kernel", "benchmark", "wwdc", "mcp", "extension"]
-  },
-  {
-    name: "工作 / 协作",
-    keywords: ["mail", "gmail", "calendar", "drive", "docs.google", "notion", "slack", "teams", "jira", "confluence", "figma", "zoom", "meet", "office", "sharepoint"]
-  },
-  {
-    name: "购物 / 商品",
-    keywords: ["amazon", "ebay", "taobao", "tmall", "jd.com", "shopping", "cart", "product", "price", "deal", "bestbuy", "target", "walmart", "coupon"]
-  },
-  {
-    name: "新闻 / 资讯",
-    keywords: ["news", "nytimes", "bbc", "cnn", "reuters", "bloomberg", "theverge", "36kr", "newsroom", "medium", "substack", "hacker news", "hn", "techcrunch"]
-  },
-  {
-    name: "旅行 / 地图",
-    keywords: ["travel", "hotel", "flight", "booking", "airbnb", "maps", "trip", "uber", "lyft", "ctrip", "expedia", "visa", "itinerary"]
-  },
-  {
-    name: "视频 / 娱乐",
-    keywords: ["youtube", "netflix", "bilibili", "video", "music", "spotify", "podcast", "twitch", "douyin", "tiktok"]
-  },
-  {
-    name: "金融 / 数据",
-    keywords: ["stock", "finance", "market", "tradingview", "nasdaq", "sec.gov", "earnings", "crypto", "bitcoin", "ethereum", "fund"]
-  }
+const COLORS = ["blue", "cyan", "green", "yellow", "orange", "red", "pink", "purple", "grey"];
+const DEFAULT_RULES = [
+  { name: "AI / Agent", color: "blue", keywords: ["ai", "agent", "llm", "openai", "anthropic", "gemini", "deepseek", "chatgpt", "claude"] },
+  { name: "浏览器 / Web 技术", color: "cyan", keywords: ["chrome", "safari", "browser", "extension", "web", "dom", "css", "javascript", "runtime", "kernel", "wwdc", "developer.chrome.com", "chromium"] },
+  { name: "论文 / 开源代码", color: "purple", keywords: ["arxiv", "paper", "github", "gitlab", "stackoverflow", "docs", "documentation"] },
+  { name: "工作 / 协作", color: "green", keywords: ["mail", "gmail", "calendar", "docs.google", "office", "notion", "slack", "teams", "jira", "confluence", "figma", "zoom", "meeting", "飞书", "lark"] },
+  { name: "购物 / 商品", color: "orange", keywords: ["amazon", "taobao", "tmall", "jd", "ebay", "shop", "cart", "product", "price", "buy", "deal", "商品", "购物", "价格"] },
+  { name: "新闻 / 资讯", color: "red", keywords: ["news", "reuters", "bloomberg", "36kr", "theverge", "techcrunch", "nytimes", "cnn", "bbc", "medium", "新闻", "资讯"] },
+  { name: "旅行 / 地图", color: "yellow", keywords: ["travel", "flight", "hotel", "booking", "airbnb", "maps", "trip", "weather", "restaurant", "旅行", "酒店", "机票", "地图"] },
+  { name: "视频 / 娱乐", color: "pink", keywords: ["youtube", "bilibili", "netflix", "video", "music", "spotify", "douyin", "tiktok", "视频", "音乐"] }
 ];
+const DEFAULT_SETTINGS = {
+  endpoint: "https://api.openai.com/v1/chat/completions",
+  apiKey: "",
+  model: "gpt-4.1-mini",
+  extraPrompt: "",
+  customRules: JSON.stringify(DEFAULT_RULES, null, 2),
+  groupByDomainFallback: true
+};
 
-function normalize(text) {
-  return (text || "").toLowerCase();
+let currentTabs = [];
+let currentPlan = [];
+
+function $(id) { return document.getElementById(id); }
+function setStatus(msg, type = "") {
+  const el = $("status");
+  el.textContent = msg;
+  el.className = `status ${type}`;
 }
-
-function getDomain(url) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch (e) {
-    return "unknown";
-  }
+function domainOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
 }
-
-function shouldSkipTab(tab, options) {
-  if (options.skipPinned && tab.pinned) return "pinned";
-  if (options.onlyUngrouped && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) return "already_grouped";
-  const url = tab.url || "";
-  if (url.startsWith("chrome://") || url.startsWith("chrome-extension://") || url.startsWith("edge://") || url.startsWith("about:")) return "internal";
-  return null;
+function isSystemUrl(url = "") {
+  return /^(chrome|chrome-extension|edge|about|devtools):\/\//.test(url);
 }
-
-function classifyTab(tab) {
-  const domain = getDomain(tab.url);
-  const text = normalize(`${tab.title || ""} ${tab.url || ""} ${domain}`);
-
-  let best = { name: null, score: 0, hits: [] };
-  for (const rule of CATEGORY_RULES) {
-    let score = 0;
-    const hits = [];
-    for (const kw of rule.keywords) {
-      if (text.includes(kw)) {
-        score += kw.length > 6 ? 2 : 1;
-        hits.push(kw);
-      }
-    }
-    if (score > best.score) best = { name: rule.name, score, hits };
-  }
-
-  if (best.score > 0) {
-    return { name: best.name, reason: `命中关键词：${best.hits.slice(0, 4).join(" / ")}` };
-  }
-
-  return { name: `站点：${domain}`, reason: "未命中主题规则，按站点临时聚合" };
-}
-
-function compactGroups(groups, minGroupSize) {
-  const result = {};
-  const reasons = {};
-  const fallback = "其他 / 稍后整理";
-
-  for (const [name, group] of Object.entries(groups)) {
-    if (name.startsWith("站点：") && group.tabs.length < minGroupSize) {
-      result[fallback] = result[fallback] || [];
-      reasons[fallback] = reasons[fallback] || "未达到最小成组数量，合并到稍后整理";
-      result[fallback].push(...group.tabs);
-    } else {
-      result[name] = result[name] || [];
-      reasons[name] = group.reason;
-      result[name].push(...group.tabs);
-    }
-  }
-
-  return { result, reasons };
-}
-
-function getOptions() {
+function compactTab(tab) {
   return {
-    skipPinned: document.getElementById("skipPinned").checked,
-    onlyUngrouped: document.getElementById("onlyUngrouped").checked,
-    minGroupSize: Number(document.getElementById("minGroupSize").value || 2)
+    id: tab.id,
+    title: tab.title || "Untitled",
+    url: tab.url || "",
+    domain: domainOf(tab.url || ""),
+    pinned: !!tab.pinned,
+    groupId: tab.groupId
   };
 }
+function normalizeName(name) {
+  return String(name || "未命名分组").replace(/[\n\r\t]/g, " ").trim().slice(0, 60) || "未命名分组";
+}
+function safeColor(color, index = 0) {
+  return COLORS.includes(color) ? color : COLORS[index % COLORS.length];
+}
 
-async function buildPlan() {
-  const options = getOptions();
+async function getCandidateTabs() {
   const tabs = await chrome.tabs.query({ currentWindow: true });
-  const groups = {};
-  const skipped = { pinned: 0, internal: 0, already_grouped: 0 };
-  let considered = 0;
-
-  for (const tab of tabs) {
-    const skipReason = shouldSkipTab(tab, options);
-    if (skipReason) {
-      skipped[skipReason] = (skipped[skipReason] || 0) + 1;
-      continue;
-    }
-    considered += 1;
-    const category = classifyTab(tab);
-    groups[category.name] = groups[category.name] || { tabs: [], reason: category.reason };
-    groups[category.name].tabs.push({
-      id: tab.id,
-      title: tab.title || tab.url,
-      url: tab.url,
-      domain: getDomain(tab.url),
-      originalGroupId: tab.groupId
-    });
+  const onlyUngrouped = $("onlyUngrouped").checked;
+  const skipPinned = $("skipPinned").checked;
+  const compact = tabs.map(compactTab);
+  const candidates = [];
+  const skipped = [];
+  for (const t of compact) {
+    if (isSystemUrl(t.url)) { skipped.push({ ...t, skipReason: "system_url" }); continue; }
+    if (skipPinned && t.pinned) { skipped.push({ ...t, skipReason: "pinned" }); continue; }
+    if (onlyUngrouped && t.groupId !== -1) { skipped.push({ ...t, skipReason: "already_grouped" }); continue; }
+    candidates.push(t);
   }
+  return { allTabs: compact, candidates, skipped };
+}
 
-  const { result, reasons } = compactGroups(groups, options.minGroupSize);
-  const plan = Object.entries(result)
-    .filter(([, tabs]) => tabs.length > 0)
-    .sort((a, b) => b[1].length - a[1].length)
-    .map(([name, tabs], index) => ({
-      id: `g_${index}_${Date.now()}`,
-      name,
-      tabs,
-      color: GROUP_COLORS[index % GROUP_COLORS.length],
-      enabled: true,
-      reason: reasons[name] || "基于标题、URL、域名归类"
-    }));
-
-  latestStats = { total: tabs.length, considered, skipped, groups: plan.length };
+function keywordScore(tab, rule) {
+  const text = `${tab.title} ${tab.url} ${tab.domain}`.toLowerCase();
+  let score = 0;
+  for (const k of (rule.keywords || [])) {
+    const kk = String(k).toLowerCase().trim();
+    if (kk && text.includes(kk)) score += 1;
+  }
+  for (const d of (rule.domains || [])) {
+    const dd = String(d).toLowerCase().replace(/^www\./, "").trim();
+    if (dd && tab.domain.toLowerCase().endsWith(dd)) score += 3;
+  }
+  for (const p of (rule.urlPatterns || [])) {
+    const pp = String(p).toLowerCase().trim();
+    if (pp && tab.url.toLowerCase().includes(pp)) score += 2;
+  }
+  for (const k of (rule.titleKeywords || [])) {
+    const kk = String(k).toLowerCase().trim();
+    if (kk && tab.title.toLowerCase().includes(kk)) score += 2;
+  }
+  return score;
+}
+function normalizeRules(rules) {
+  if (!Array.isArray(rules)) return DEFAULT_RULES;
+  return rules
+    .map((r, i) => ({
+      name: normalizeName(r.name || `自定义规则 ${i + 1}`),
+      color: safeColor(r.color, i),
+      keywords: Array.isArray(r.keywords) ? r.keywords : [],
+      domains: Array.isArray(r.domains) ? r.domains : [],
+      urlPatterns: Array.isArray(r.urlPatterns) ? r.urlPatterns : [],
+      titleKeywords: Array.isArray(r.titleKeywords) ? r.titleKeywords : []
+    }))
+    .filter(r => r.keywords.length || r.domains.length || r.urlPatterns.length || r.titleKeywords.length);
+}
+async function loadRuleConfig() {
+  const data = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  let rules = DEFAULT_RULES;
+  try { rules = normalizeRules(JSON.parse(data.customRules || "[]")); }
+  catch { rules = DEFAULT_RULES; }
+  return { rules, groupByDomainFallback: data.groupByDomainFallback !== false };
+}
+function classifyRule(tab, rules, groupByDomainFallback) {
+  let best = null;
+  for (const r of rules) {
+    const score = keywordScore(tab, r);
+    if (score > 0 && (!best || score > best.score)) best = { ...r, score };
+  }
+  if (best) return { name: best.name, color: best.color, reason: `自定义/内置规则命中，score=${best.score}` };
+  if (groupByDomainFallback) {
+    const d = tab.domain || "其他";
+    return { name: d, color: "grey", reason: "未命中规则，按站点域名归类" };
+  }
+  return { name: "其他 / 未分类", color: "grey", reason: "未命中规则" };
+}
+async function buildRulePlan(tabs, minSize) {
+  const { rules, groupByDomainFallback } = await loadRuleConfig();
+  const map = new Map();
+  for (const tab of tabs) {
+    const c = classifyRule(tab, rules, groupByDomainFallback);
+    if (!map.has(c.name)) map.set(c.name, { name: c.name, color: c.color, reason: c.reason, tabIds: [], tabs: [] });
+    map.get(c.name).tabIds.push(tab.id);
+    map.get(c.name).tabs.push(tab);
+  }
+  let plan = Array.from(map.values()).filter(g => g.tabs.length >= minSize);
+  plan.sort((a, b) => b.tabs.length - a.tabs.length);
+  plan.forEach((g, i) => g.color = safeColor(g.color, i));
   return plan;
 }
 
-function renderStats(stats) {
-  const el = document.getElementById("stats");
-  if (!stats) {
-    el.style.display = "none";
-    el.textContent = "";
-    return;
+function buildAIPrompt(tabs, minSize, extraPrompt) {
+  return [
+    "你是一个浏览器标签页语义整理器。请根据 tabs 的 title/url/domain，把它们聚类为少量有意义的主题分组。",
+    "要求：",
+    `1. 只使用输入里的 tab id，不要创造 tab id。`,
+    `2. 每个分组至少包含 ${minSize} 个 tab；无法成组的 tab 可以忽略。`,
+    "3. 分组名使用简洁中文，适合 Chrome Tab Group 名称，最多 18 个汉字。",
+    "4. 每个 tab 最多出现在一个分组里。",
+    "5. color 只能从 blue/cyan/green/yellow/orange/red/pink/purple/grey 中选择。",
+    "6. reason 用一句中文解释为什么这些 tab 属于同一组。",
+    "7. 严格返回 JSON，不要 Markdown，不要代码块，不要额外解释。",
+    "JSON 格式：{\"groups\":[{\"name\":\"...\",\"color\":\"blue\",\"reason\":\"...\",\"tabIds\":[1,2,3]}]}",
+    extraPrompt ? `用户附加偏好：${extraPrompt}` : "",
+    "Tabs:",
+    JSON.stringify(tabs.map(t => ({ id: t.id, title: t.title, url: t.url, domain: t.domain })), null, 2)
+  ].filter(Boolean).join("\n");
+}
+function extractJson(text) {
+  const trimmed = (text || "").trim();
+  if (trimmed.startsWith("{")) return JSON.parse(trimmed);
+  const match = trimmed.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("模型没有返回 JSON 对象");
+  return JSON.parse(match[0]);
+}
+async function callAI(tabs, minSize) {
+  const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  if (!settings.apiKey) throw new Error("未配置 API Key。请点击 AI 设置后再使用 AI 模式。");
+  const prompt = buildAIPrompt(tabs, minSize, settings.extraPrompt || "");
+  const res = await fetch(settings.endpoint || DEFAULT_SETTINGS.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${settings.apiKey}`
+    },
+    body: JSON.stringify({
+      model: settings.model || DEFAULT_SETTINGS.model,
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: "You return strict JSON only." },
+        { role: "user", content: prompt }
+      ]
+    })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`AI 请求失败：HTTP ${res.status} ${body.slice(0, 180)}`);
   }
-  el.style.display = "block";
-  el.textContent = `当前窗口 ${stats.total} 个标签页；纳入整理 ${stats.considered} 个；生成 ${stats.groups} 个候选分组；跳过：固定 ${stats.skipped.pinned || 0}，已分组 ${stats.skipped.already_grouped || 0}，内部页 ${stats.skipped.internal || 0}。`;
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || "";
+  return extractJson(text);
+}
+function validatePlan(raw, candidates, minSize) {
+  const tabMap = new Map(candidates.map(t => [t.id, t]));
+  const used = new Set();
+  const groups = Array.isArray(raw?.groups) ? raw.groups : [];
+  const out = [];
+  groups.forEach((g, i) => {
+    const tabIds = Array.isArray(g.tabIds) ? g.tabIds : [];
+    const uniq = [];
+    for (const id of tabIds) {
+      const n = Number(id);
+      if (!tabMap.has(n) || used.has(n)) continue;
+      used.add(n);
+      uniq.push(n);
+    }
+    if (uniq.length >= minSize) {
+      out.push({
+        name: normalizeName(g.name),
+        color: safeColor(g.color, i),
+        reason: String(g.reason || "AI 语义聚类").slice(0, 160),
+        tabIds: uniq,
+        tabs: uniq.map(id => tabMap.get(id))
+      });
+    }
+  });
+  out.sort((a, b) => b.tabs.length - a.tabs.length);
+  return out;
 }
 
+function updateStats(total, used, skipped, groups) {
+  $("statTotal").textContent = total;
+  $("statUsed").textContent = used;
+  $("statSkipped").textContent = skipped;
+  $("statGroups").textContent = groups;
+}
 function renderPlan(plan) {
-  const preview = document.getElementById("preview");
-  preview.innerHTML = "";
-  renderStats(latestStats);
-
-  if (!plan || plan.length === 0) {
-    preview.innerHTML = `<div class="empty">没有可整理的标签页。可以关闭“只整理尚未分组的标签页”后再试。</div>`;
+  const root = $("groups");
+  root.innerHTML = "";
+  currentPlan = plan;
+  $("applyBtn").disabled = plan.length === 0;
+  if (!plan.length) {
+    root.innerHTML = `<div class="status">没有达到最小成组数量的候选分组。</div>`;
     return;
   }
-
-  for (let i = 0; i < plan.length; i++) {
-    const group = plan[i];
+  plan.forEach((g, idx) => {
     const div = document.createElement("div");
-    div.className = `group${group.enabled ? "" : " disabled"}`;
-    div.dataset.index = String(i);
-
-    const items = group.tabs.slice(0, 8).map(t => `<li title="${escapeHtml(t.title)}">${escapeHtml(t.title)} <span style="color:#94a3b8">(${escapeHtml(t.domain)})</span></li>`).join("");
-    const more = group.tabs.length > 8 ? `<li>... 还有 ${group.tabs.length - 8} 个</li>` : "";
-    const colors = GROUP_COLORS.map(c => `<option value="${c}" ${c === group.color ? "selected" : ""}>${c}</option>`).join("");
-
+    div.className = "group";
+    div.dataset.index = String(idx);
+    const options = COLORS.map(c => `<option value="${c}" ${c === g.color ? "selected" : ""}>${c}</option>`).join("");
+    const list = g.tabs.map(t => `<li><span class="title" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</span><br><span class="small">${escapeHtml(t.domain)}</span></li>`).join("");
     div.innerHTML = `
-      <div class="group-head">
-        <input type="checkbox" class="group-enabled" ${group.enabled ? "checked" : ""} title="是否应用这个分组" />
-        <input class="group-title-input" type="text" value="${escapeAttr(group.name)}" />
-        <select class="color-select">${colors}</select>
-        <span class="count">${group.tabs.length} tabs</span>
+      <div class="ghead">
+        <input type="checkbox" class="enabled" checked />
+        <input class="gname" value="${escapeAttr(g.name)}" />
+        <select class="color">${options}</select>
       </div>
-      <div class="reason">${escapeHtml(group.reason)}</div>
-      <ul>${items}${more}</ul>
-    `;
-    preview.appendChild(div);
-  }
-
-  wirePlanEditors();
-}
-
-function wirePlanEditors() {
-  document.querySelectorAll(".group").forEach(div => {
-    const index = Number(div.dataset.index);
-    const checkbox = div.querySelector(".group-enabled");
-    const title = div.querySelector(".group-title-input");
-    const color = div.querySelector(".color-select");
-
-    checkbox.addEventListener("change", () => {
-      latestPlan[index].enabled = checkbox.checked;
-      div.classList.toggle("disabled", !checkbox.checked);
-      updateApplyButton();
-    });
-    title.addEventListener("input", () => {
-      latestPlan[index].name = title.value.trim() || "未命名分组";
-    });
-    color.addEventListener("change", () => {
-      latestPlan[index].color = color.value;
-    });
+      <div class="reason">${escapeHtml(g.reason || "")}</div>
+      <ul>${list}</ul>`;
+    root.appendChild(div);
   });
 }
-
-function updateApplyButton() {
-  const enabledCount = latestPlan ? latestPlan.filter(g => g.enabled && g.tabs.length > 0).length : 0;
-  document.getElementById("applyBtn").disabled = enabledCount === 0;
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>]/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[ch]));
+}
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, "&quot;");
+}
+function collectEditedPlan() {
+  const cards = Array.from(document.querySelectorAll(".group"));
+  return cards.map(card => {
+    const idx = Number(card.dataset.index);
+    const g = currentPlan[idx];
+    return {
+      ...g,
+      enabled: card.querySelector(".enabled").checked,
+      name: normalizeName(card.querySelector(".gname").value),
+      color: safeColor(card.querySelector(".color").value, idx)
+    };
+  }).filter(g => g.enabled);
 }
 
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-}
-
-function escapeAttr(str) {
-  return escapeHtml(str).replace(/`/g, "&#96;");
-}
-
-async function applyPlan(plan) {
-  const created = [];
-  for (const group of plan) {
-    if (!group.enabled || group.tabs.length === 0) continue;
-    const tabIds = group.tabs.map(t => t.id).filter(Boolean);
-    if (tabIds.length === 0) continue;
-
-    const groupId = await chrome.tabs.group({ tabIds });
-    await chrome.tabGroups.update(groupId, {
-      title: group.name.slice(0, 64),
-      color: group.color
-    });
-    created.push({ groupId, tabIds, title: group.name, color: group.color, createdAt: Date.now() });
-  }
-
-  await chrome.storage.local.set({ lastAppliedGroups: created });
-  document.getElementById("undoBtn").disabled = created.length === 0;
-  return created;
-}
-
-async function undoLastGrouping() {
-  const { lastAppliedGroups } = await chrome.storage.local.get("lastAppliedGroups");
-  const groups = Array.isArray(lastAppliedGroups) ? lastAppliedGroups : [];
-  if (groups.length === 0) return 0;
-
-  let count = 0;
-  for (const group of groups) {
-    const liveTabs = [];
-    for (const tabId of group.tabIds || []) {
-      try {
-        const tab = await chrome.tabs.get(tabId);
-        if (tab && tab.groupId === group.groupId) liveTabs.push(tabId);
-      } catch (e) {
-        // Tab may have been closed. Ignore.
-      }
-    }
-    if (liveTabs.length > 0) {
-      await chrome.tabs.ungroup(liveTabs);
-      count += liveTabs.length;
-    }
-  }
-  await chrome.storage.local.remove("lastAppliedGroups");
-  document.getElementById("undoBtn").disabled = true;
-  return count;
-}
-
-function setStatus(text) {
-  document.getElementById("status").textContent = text;
-}
-
-async function refreshUndoState() {
-  const { lastAppliedGroups } = await chrome.storage.local.get("lastAppliedGroups");
-  document.getElementById("undoBtn").disabled = !(Array.isArray(lastAppliedGroups) && lastAppliedGroups.length > 0);
-}
-
-document.getElementById("previewBtn").addEventListener("click", async () => {
+async function generatePreview() {
   try {
-    setStatus("正在生成预览...");
-    latestPlan = await buildPlan();
-    renderPlan(latestPlan);
-    updateApplyButton();
-    setStatus(`已生成 ${latestPlan.length} 个候选分组。可先编辑分组名/颜色/是否应用。`);
-  } catch (e) {
-    console.error(e);
-    setStatus(`生成失败：${e.message || e}`);
+    setStatus("正在读取当前窗口 tabs...");
+    $("applyBtn").disabled = true;
+    const minSize = Math.max(1, Number($("minSize").value || 2));
+    const { allTabs, candidates, skipped } = await getCandidateTabs();
+    currentTabs = candidates;
+    updateStats(allTabs.length, candidates.length, skipped.length, 0);
+    if (!candidates.length) {
+      renderPlan([]);
+      setStatus("没有可整理的标签页。可取消“只整理未分组 tabs”后再试。", "error");
+      return;
+    }
+    const mode = $("mode").value;
+    let plan;
+    if (mode === "ai") {
+      setStatus("正在调用 AI 生成语义分组计划...");
+      const raw = await callAI(candidates, minSize);
+      plan = validatePlan(raw, candidates, minSize);
+      setStatus(`AI 分组计划已生成：${plan.length} 组。请检查预览后应用。`, "ok");
+    } else {
+      plan = await buildRulePlan(candidates, minSize);
+      setStatus(`规则分组计划已生成：${plan.length} 组。请检查预览后应用。`, "ok");
+    }
+    updateStats(allTabs.length, candidates.length, skipped.length, plan.length);
+    renderPlan(plan);
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || String(err), "error");
   }
-});
+}
 
-document.getElementById("applyBtn").addEventListener("click", async () => {
-  if (!latestPlan) return;
+async function applyGroups() {
   try {
+    const plan = collectEditedPlan();
+    if (!plan.length) { setStatus("没有选中的分组。", "error"); return; }
     setStatus("正在应用分组...");
-    const created = await applyPlan(latestPlan);
-    setStatus(`已应用 ${created.length} 个分组。可以用“撤销上次分组”回退。`);
-  } catch (e) {
-    console.error(e);
-    setStatus(`应用失败：${e.message || e}`);
+    const created = [];
+    for (const g of plan) {
+      const groupId = await chrome.tabs.group({ tabIds: g.tabIds });
+      await chrome.tabGroups.update(groupId, { title: g.name, color: g.color });
+      created.push({ groupId, tabIds: g.tabIds, name: g.name });
+    }
+    await chrome.storage.local.set({ lastAppliedGroups: created, lastAppliedAt: Date.now() });
+    setStatus(`已应用 ${created.length} 个分组。`, "ok");
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || String(err), "error");
   }
-});
+}
 
-document.getElementById("undoBtn").addEventListener("click", async () => {
+async function undoLast() {
   try {
-    setStatus("正在撤销上次分组...");
-    const count = await undoLastGrouping();
-    setStatus(`已撤销，上次创建的 ${count} 个标签页已取消分组。`);
-  } catch (e) {
-    console.error(e);
-    setStatus(`撤销失败：${e.message || e}`);
+    const { lastAppliedGroups } = await chrome.storage.local.get({ lastAppliedGroups: [] });
+    if (!lastAppliedGroups?.length) { setStatus("没有可撤销的上次分组。", "error"); return; }
+    const tabIds = lastAppliedGroups.flatMap(g => g.tabIds || []);
+    const existingTabs = await chrome.tabs.query({ currentWindow: true });
+    const existingIds = new Set(existingTabs.map(t => t.id));
+    const validIds = tabIds.filter(id => existingIds.has(id));
+    if (validIds.length) await chrome.tabs.ungroup(validIds);
+    await chrome.storage.local.set({ lastAppliedGroups: [] });
+    setStatus(`已撤销上次分组，影响 ${validIds.length} 个标签页。`, "ok");
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || String(err), "error");
   }
-});
+}
 
-document.getElementById("clearBtn").addEventListener("click", () => {
-  latestPlan = null;
-  latestStats = null;
-  document.getElementById("preview").innerHTML = "";
-  renderStats(null);
-  document.getElementById("applyBtn").disabled = true;
-  setStatus("已清空预览。");
-});
+async function ungroupAllCurrentWindow() {
+  try {
+    setStatus("正在撤销当前窗口所有分组...");
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const groupedTabIds = tabs
+      .filter(t => t.groupId !== -1)
+      .map(t => t.id)
+      .filter(id => Number.isInteger(id));
 
-refreshUndoState();
+    if (!groupedTabIds.length) {
+      setStatus("当前窗口没有已分组的标签页。", "error");
+      return;
+    }
+
+    await chrome.tabs.ungroup(groupedTabIds);
+    await chrome.storage.local.set({ lastAppliedGroups: [] });
+    setStatus(`已撤销当前窗口所有分组，影响 ${groupedTabIds.length} 个标签页。`, "ok");
+
+    // Clear stale preview stats because the window state has changed.
+    updateStats(tabs.length, 0, 0, 0);
+    renderPlan([]);
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || String(err), "error");
+  }
+}
+
+
+async function cleanupAllWindowsBeforeUninstall() {
+  try {
+    const confirmed = window.confirm(
+      "Chrome 扩展没有可靠的卸载回调。\n\n" +
+      "此操作会先撤销所有 Chrome 窗口中的标签页分组，然后打开扩展管理页，方便你卸载 AI Tab Organizer。\n\n" +
+      "是否继续？"
+    );
+    if (!confirmed) return;
+
+    setStatus("正在清除所有窗口中的标签页分组...");
+    const tabs = await chrome.tabs.query({});
+    const groupedTabIds = tabs
+      .filter(t => t.groupId !== -1)
+      .map(t => t.id)
+      .filter(id => Number.isInteger(id));
+
+    if (groupedTabIds.length) {
+      await chrome.tabs.ungroup(groupedTabIds);
+    }
+    await chrome.storage.local.set({ lastAppliedGroups: [] });
+    updateStats(tabs.length, 0, 0, 0);
+    renderPlan([]);
+
+    setStatus(`已清除所有窗口中的分组，影响 ${groupedTabIds.length} 个标签页。已打开扩展管理页，可手动卸载。`, "ok");
+
+    try {
+      await chrome.tabs.create({ url: "chrome://extensions/" });
+    } catch (e) {
+      console.warn("Unable to open chrome://extensions/", e);
+    }
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || String(err), "error");
+  }
+}
+
+$("previewBtn").addEventListener("click", generatePreview);
+$("applyBtn").addEventListener("click", applyGroups);
+$("undoBtn").addEventListener("click", undoLast);
+$("ungroupAllBtn").addEventListener("click", ungroupAllCurrentWindow);
+$("cleanupBeforeUninstallBtn").addEventListener("click", cleanupAllWindowsBeforeUninstall);
+$("optionsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
+setStatus("选择模式后点击“生成分组预览”。");
