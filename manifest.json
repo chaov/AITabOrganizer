@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AI Tab Organizer PoC",
-  "version": "0.1.0",
-  "description": "A Chrome Extension PoC that groups current-window tabs by semantic-like categories.",
+  "version": "0.2.0",
+  "description": "A Chrome Extension PoC that previews, edits, applies, and undoes semantic-like tab groups.",
   "permissions": ["tabs", "tabGroups", "storage"],
   "action": {
     "default_title": "AI Tab Organizer",
