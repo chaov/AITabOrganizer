@@ -1,34 +1,15 @@
 {
   "manifest_version": 3,
   "name": "AI Tab Organizer",
-  "description": "AI Tab Organizer with default AI semantic grouping, adaptive AI timeout, batch mode for large windows, fast rules fallback, optional page semantics, and custom rules.",
-  "version": "0.4.6",
-  "permissions": [
-    "tabs",
-    "tabGroups",
-    "storage",
-    "scripting"
-  ],
-  "host_permissions": [
-    "https://api.openai.com/*",
-    "https://*/",
-    "http://localhost/*",
-    "http://127.0.0.1/*",
-    "http://*/"
-  ],
+  "description": "AI semantic tab grouping with editable preview, drag-and-drop adjustment, custom rules, adaptive timeout, and cleanup tools.",
+  "version": "0.5.0",
+  "permissions": ["tabs", "tabGroups", "storage", "scripting"],
+  "host_permissions": ["https://*/", "http://*/", "https://api.openai.com/*", "https://api.deepseek.com/*", "http://localhost/*", "http://127.0.0.1/*"],
   "action": {
     "default_title": "AI Tab Organizer",
     "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
-    }
+    "default_icon": {"16": "icon16.png", "48": "icon48.png", "128": "icon128.png"}
   },
   "options_page": "options.html",
-  "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
-  }
+  "icons": {"16": "icon16.png", "48": "icon48.png", "128": "icon128.png"}
 }
